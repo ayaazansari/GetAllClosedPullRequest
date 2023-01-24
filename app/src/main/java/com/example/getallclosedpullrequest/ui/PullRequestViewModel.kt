@@ -1,9 +1,12 @@
 package com.example.getallclosedpullrequest.ui
 
+import android.app.Application
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 import android.util.Log
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,31 +15,29 @@ import com.example.getallclosedpullrequest.repository.PullRequestRepository
 import com.example.getallclosedpullrequest.utils.Resource
 import kotlinx.coroutines.launch
 import retrofit2.Response
+import java.io.IOException
 
 typealias PullRequestList = MutableList<PullRequest>
 
 class PullRequestViewModel(
+    app:Application,
     val pullRequestRepository: PullRequestRepository
-) : ViewModel() {
+) : AndroidViewModel(app) {
     val pullRequestList = MutableLiveData<Resource<PullRequestList>>()
     var pageNumber = 1
     var pullRequestListResponse: PullRequestList? = null
 
-//    init{
-//        getPullRequest("oppia","oppia-android","closed")
-//    }
+    init{
+        updatePullRequest()
+    }
 
-    fun refresh() {
+    fun updatePullRequest() {
         getPullRequest("oppia", "oppia-android", "closed")
     }
 
-    private fun getPullRequest(owner: String, repo: String, pullRequestState: String) =
-        viewModelScope.launch {
-            pullRequestList.postValue(Resource.Loading())
-            val response =
-                pullRequestRepository.getPullRequest(owner, repo, pullRequestState, pageNumber)
-            pullRequestList.postValue(handleResponse(response))
-        }
+    private fun getPullRequest(owner: String, repo: String, pullRequestState: String) = viewModelScope.launch {
+        safePullRequestCall(owner,repo,pullRequestState)
+    }
 
     private fun handleResponse(response: Response<PullRequestList>): Resource<PullRequestList> {
         if (response.isSuccessful) {
@@ -55,22 +56,45 @@ class PullRequestViewModel(
         return Resource.Error(response.message())
     }
 
-    fun isOnline(context: Context): Boolean {
-        val connectivityManager =
-            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        if (connectivityManager != null) {
-            val capabilities =
-                connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
-            if (capabilities != null) {
-                if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
-                    Log.i("Internet", "NetworkCapabilities.TRANSPORT_CELLULAR")
-                    return true
-                } else if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-                    Log.i("Internet", "NetworkCapabilities.TRANSPORT_WIFI")
-                    return true
-                } else if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) {
-                    Log.i("Internet", "NetworkCapabilities.TRANSPORT_ETHERNET")
-                    return true
+
+    private suspend fun safePullRequestCall(owner: String, repo: String, pullRequestState: String){
+        pullRequestList.postValue(Resource.Loading())
+        try{
+            if(hasInternetConnection()) {
+                val response = pullRequestRepository.getPullRequest(owner, repo, pullRequestState, pageNumber)
+                pullRequestList.postValue(handleResponse(response))
+            } else{
+                pullRequestList.postValue(Resource.Error("No internet connection"))
+            }
+        } catch (t:Throwable){
+            when(t){
+                is IOException -> pullRequestList.postValue(Resource.Error("Network Failure"))
+                else -> pullRequestList.postValue(Resource.Error("Conversion Error"))
+            }
+        }
+    }
+
+    private fun hasInternetConnection():Boolean{
+        val connectivityManager = getApplication<PullRequestApplication>().getSystemService(
+            Context.CONNECTIVITY_SERVICE
+        ) as ConnectivityManager
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
+            val activeNetwork = connectivityManager.activeNetwork?:return false
+            val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork)?:return false
+            return when{
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> true
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> true
+                else -> false
+            }
+        }
+        else{
+            connectivityManager.activeNetworkInfo?.run {
+                return when(type){
+                    ConnectivityManager.TYPE_WIFI -> true
+                    ConnectivityManager.TYPE_MOBILE -> true
+                    ConnectivityManager.TYPE_ETHERNET -> true
+                    else ->false
                 }
             }
         }

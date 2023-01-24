@@ -26,20 +26,11 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         val pullRequestRepository = PullRequestRepository()
-        val viewModelProviderFactory = PullRequestViewModelProviderFactory(pullRequestRepository)
+        val viewModelProviderFactory = PullRequestViewModelProviderFactory(application,pullRequestRepository)
         viewModel = ViewModelProvider(this, viewModelProviderFactory).get(PullRequestViewModel::class.java)
 
-        if (viewModel.isOnline(this)) {
-            viewModel.refresh()
-        } else {
-            hideProgressBar()
-            listError.visibility = View.VISIBLE
-            Toast.makeText(this, "No Internet", Toast.LENGTH_LONG).show()
-        }
         setupRecyclerView()
-
         observeViewModel()
-
     }
 
     private fun observeViewModel() {
@@ -53,7 +44,6 @@ class MainActivity : AppCompatActivity() {
                         hideProgressBar()
                     } else {
                         response.data?.let { pullRequestResponse ->
-//                        Log.e("Ayaaz","$pullRequestResponse")
                             recyclerList.visibility = View.VISIBLE
                             pullRequestAdapter.updatePullRequestList(pullRequestResponse.toList())
                             val totalPages = pullRequestResponse.size / QUERY_PAGE_SIZE + 2
@@ -63,7 +53,11 @@ class MainActivity : AppCompatActivity() {
                 }
                 is Resource.Error -> {
                     listError.visibility = View.VISIBLE
+                    recyclerList.visibility = View.GONE
                     hideProgressBar()
+                    response.message?.let { message ->
+                        Toast.makeText(this,"An error occured: $message",Toast.LENGTH_LONG).show()
+                    }
                 }
                 is Resource.Loading -> {
                     showProgressBar()
@@ -106,7 +100,7 @@ class MainActivity : AppCompatActivity() {
             val shouldPaginate = isNotLoadingAndNotLastPage && isAtLastItem && isNotAtBeginning &&
                     isTotalMoreThanVisible && isScrolling
             if (shouldPaginate) {
-                viewModel.refresh()
+                viewModel.updatePullRequest()
                 isScrolling = false
             }
         }
