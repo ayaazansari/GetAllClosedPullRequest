@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">GetAllClosedPullRequest</string>
+    <string name="error_text">An error occurred while loading Data.</string>
+</resources>
