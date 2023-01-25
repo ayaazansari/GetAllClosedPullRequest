@@ -5,11 +5,10 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.getallclosedpullrequest.PullRequestApplication
 import com.example.getallclosedpullrequest.model.PullRequest
 import com.example.getallclosedpullrequest.repository.PullRequestRepository
 import com.example.getallclosedpullrequest.utils.Resource

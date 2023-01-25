@@ -1,4 +1,4 @@
-package com.example.getallclosedpullrequest.ui
+package com.example.getallclosedpullrequest
 
 import android.app.Application
 
